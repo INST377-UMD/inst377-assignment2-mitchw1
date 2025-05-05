@@ -1,0 +1,119 @@
+<!-- stocks page -->
+<!-- Mitchell Willoughby -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Stocks</title>
+  <link rel="stylesheet" href="assignment2_styles.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/annyang/2.6.1/annyang.min.js"></script>
+</head>
+<body>
+  <nav>
+    <ul>
+      <li><a href="assignment2.html">Home</a></li>
+      <li><a href="stocks.html">Stocks</a></li>
+      <li><a href="dogs.html">Dogs</a></li>
+    </ul>
+  </nav>
+
+  <main>
+    <h1>Stock Chart</h1>
+    <input id="ticker" placeholder="Enter Stock Ticker">
+    <select id="range">
+      <option value="30">30 Days</option>
+      <option value="60">60 Days</option>
+      <option value="90">90 Days</option>
+    </select>
+    <button class="custom-btn" onclick="fetchStockData()">Get Stock Data</button>
+    <canvas id="stockChart"></canvas>
+
+    <h2>Top 5 Reddit Stocks</h2>
+    <table>
+      <thead><tr><th>Ticker</th><th>Comments</th><th>Sentiment</th></tr></thead>
+      <tbody id="redditStocks"></tbody>
+    </table>
+  </main>
+
+  <div class="audio-box">
+    <p>Say "Lookup MSFT" to view a chart</p>
+    <button onclick="annyang.start()">Turn On Audio</button>
+    <button onclick="annyang.abort()">Turn Off Audio</button>
+  </div>
+
+  <script>
+    let chart;
+    async function fetchStockData() {
+      const ticker = document.getElementById('ticker').value.toUpperCase();
+      const days = parseInt(document.getElementById('range').value);
+      const today = new Date();
+      const past = new Date();
+      past.setDate(today.getDate() - days);
+      const formatDate = date => date.toISOString().split('T')[0];
+
+      const url = `https://api.polygon.io/v2/aggs/ticker/${ticker}/range/1/day/${formatDate(past)}/${formatDate(today)}?adjusted=true&sort=asc&apiKey=Cispkdy9PjFavtkhQZJMXqO_A52hVKVy`;
+
+      const res = await fetch(url);
+      const json = await res.json();
+      if (!json.results || json.results.length === 0) {
+        alert("No data found.");
+        return;
+      }
+
+      const labels = json.results.map(d => new Date(d.t).toLocaleDateString());
+      const values = json.results.map(d => d.c);
+
+      const ctx = document.getElementById('stockChart').getContext('2d');
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels: labels,
+          datasets: [{
+            label: ticker,
+            data: values,
+            borderColor: 'rgba(75, 192, 192, 1)',
+            borderWidth: 2
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false
+        }
+      });
+    }
+
+    async function loadRedditStocks() {
+      const res = await fetch('https://tradestie.com/api/v1/apps/reddit?date=2022-04-03');
+      const data = await res.json();
+      const top5 = data.slice(0, 5);
+      const tbody = document.getElementById('redditStocks');
+      tbody.innerHTML = '';
+      top5.forEach(stock => {
+        const tr = document.createElement('tr');
+        const sentimentIcon = stock.sentiment === 'Bullish' ? '📈' : '📉';
+        tr.innerHTML = `<td><a href="https://finance.yahoo.com/quote/${stock.ticker}" target="_blank">${stock.ticker}</a></td><td>${stock.no_of_comments}</td><td>${sentimentIcon}</td>`;
+        tbody.appendChild(tr);
+      });
+    }
+
+    loadRedditStocks();
+
+    if (annyang) {
+      const commands = {
+        'hello': () => alert('Hello World'),
+        'change the color to *color': color => document.body.style.backgroundColor = color,
+        'navigate to *page': page => location.href = `${page.toLowerCase()}.html`,
+        'lookup *stock': stock => {
+          document.getElementById('ticker').value = stock.toUpperCase();
+          fetchStockData();
+        }
+      };
+      annyang.addCommands(commands);
+      annyang.start();
+    }
+  </script>
+</body>
+</html>
